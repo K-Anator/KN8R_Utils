@@ -1,12 +1,13 @@
 --K-Anator's Utilities.
 
-json = require("json")
+--json = require("json")
 
 local commandPrefix = "!" --prefix used to identify commands entered through chat
 
 local debugOutput = true --set to false to hide console printed information
 
 local userStatsPath = "Resources/KN8R_Utils/UserStats/"
+local leaderboardFile = "Resources/KN8R_Utils/UserStats/races_leaderboard.json"
 
 function onInit() --runs when plugin is loaded
 
@@ -67,6 +68,7 @@ function onPlayerJoin(player_id)
 		print("onPlayerJoin: player_id: " .. player_id)
 	end
 	MP.SendChatMessage(-1, MP.GetPlayerName(player_id) .. " has joined the server!")
+	sendUserLeaderboard(player_id)
 end
 
 --A player has disconnected
@@ -150,6 +152,9 @@ end
 	--end
 	--MP.SendChatMessage(-1, MP.GetPlayerName(player_id) .. "'s speed is: " .. data)
 --end
+local function sendUserLeaderboard(player_id)
+	MP.TriggerClientEvent("getLeaderboardMP", leaderboardFile)
+end
 
 function raceStart(player_id, data)
 	local player_name = MP.GetPlayerName(player_id)
