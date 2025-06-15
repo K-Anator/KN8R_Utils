@@ -1,11 +1,11 @@
 -- K-Anator's Utilities.
--- json = require("json")
+json = require("json")
 local commandPrefix = "!" -- prefix used to identify commands entered through chat
 
 local debugOutput = true -- set to false to hide console printed information
 
 local userStatsPath = "Resources/KN8R_Utils/UserStats/"
-local leaderboardFile = "Resources/KN8R_Utils/UserStats/races_leaderboard.json"
+local leaderboardPath = "Resources/KN8R_Utils/UserStats/leaderboards/"
 
 function onInit() -- runs when plugin is loaded
 
@@ -33,6 +33,7 @@ function onInit() -- runs when plugin is loaded
     MP.RegisterEvent("raceCreateStats", "raceCreateStats")
     MP.RegisterEvent("loadRaceLeaderboard", "loadRaceLeaderboard")
     MP.RegisterEvent("saveRaceLeaderboard", "saveRaceLeaderboard")
+	MP.RegisterEvent("jsonTest", "jsonTest")
 
     print("K-Anator's Utilities Loaded!")
 end
@@ -72,7 +73,7 @@ function onPlayerJoin(player_id)
         print("onPlayerJoin: player_id: " .. player_id)
     end
     MP.SendChatMessage(-1, MP.GetPlayerName(player_id) .. " has joined the server!")
-    --sendUserLeaderboard(player_id)
+    sendUserLeaderboard(player_id, true)
 end
 
 -- A player has disconnected
@@ -167,10 +168,16 @@ function raceBegin(player_id, data)
     if debugOutput then
         print(player_name .. "(" .. beammp .. ")" .. " started: " .. trackname .. "!")
     end
+    --raceUpdateStats(player_name, beammp, trackname, currentlap, currentcheckpoint, ispitted)
 
+	--Check if player has stats file
+	local currentPlayerStats = userStatsPath .. "/" .. beammp .. ".json"
+	if not FS.IsFile(currentPlayerStats) then
+		print("Stats for this player don't exist, creating them.")
+        raceCreateStats(trackname, beammp, player_name)
+    end  
 
-    raceUpdateStats(player_name, beammp, trackname, currentlap, currentcheckpoint, ispitted)
-
+	--jsonTest(trackname, beammp)
 end
 
 function raceCheckpoint(player_id, data)
@@ -233,6 +240,7 @@ function racePitExit(player_id, data)
     end
 end
 
+--This shouldn't be called and was the wrong way to do things entirely.
 function raceUpdateStats(player_name, beammp, trackname, currentlap, currentcheckpoint, ispitted)
 	local currentPlayerStats = userStatsPath .. "/" .. trackname .. "/" .. beammp .. ".json"
     -- Check for player stats and create them if needed
@@ -250,44 +258,81 @@ function raceUpdateStats(player_name, beammp, trackname, currentlap, currentchec
 end
 
 
-function raceCreateStats(trackname, beammp)
+function raceCreateStats(trackname, beammp, player_name)
 
-    if not FS.IsDirectory(userStatsPath .. "/" .. trackname) then
-        -- Create the directory
-        local tracksuccess, error_message = FS.CreateDirectory(userStatsPath .. "/" .. trackname)
-        if not tracksuccess then
-            print("failed to create track directory: " .. error_message)
-        else
-            print("Track directory created!")
-        end
-    else
-        print("Track directory already exists!")
-    end
-
-    if not FS.IsFile(userStatsPath .. "/" .. trackname .. "/" .. beammp .. ".json") then
+    if not FS.IsFile(userStatsPath .. "/" .. beammp .. ".json") then
         -- Create the user file
-
         local playersuccess, error_message =
-            io.open(userStatsPath .. "/" .. trackname .. "/" .. beammp .. ".json", "w+")
+            io.open(userStatsPath ..  "/" .. beammp .. ".json", "w+")
 
         if not playersuccess then
             print("failed to create player file: " .. error_message)
         else
             print("Player file created!")
         end
-        io.close(playersuccess)
+        io.close(playersuccess)	
     else
         print("Player file already exists!")
-    end
+    end	
+	--Format the user file
 end
 
-local function sendUserLeaderboard(player_id)
-    --MP.TriggerClientEvent("getLeaderboardMP", leaderboardFile)
+function raceCreateLeaderboard(beammp)
+
+    if not FS.IsFile(userStatsPath .. "/" .. beammp .. ".json") then
+        -- Create the user file
+        local playersuccess, error_message =
+            io.open(userStatsPath ..  "/" .. beammp .. ".json", "w+")
+
+        if not playersuccess then
+            print("failed to create player file: " .. error_message)
+        else
+            print("Player file created!")
+        end
+        io.close(playersuccess)	
+    else
+        print("Player file already exists!")
+    end	
+	--Format the user file?
+end
+
+function sendUserLeaderboard(player_id, data)
+	local player_name = MP.GetPlayerName(player_id)
+    local beammp = MP.GetPlayerIdentifiers(player_id).beammp or "N/A"
+	local data = data
+
+	if debugOutput then
+		print("Player: " .. player_name .. " is requesting their leaderboard")
+	end
+
+	--does leaderboard for this player exist?
+	local currentPlayerLeaderboard = leaderboardPath .. "/" .. beammp .. ".json"	
+	if not FS.IsFile(currentPlayerLeaderboard) then
+		print("Stats for this player don't exist, creating them.")
+        raceCreateLeaderboard(beammp)
+    end
+
+	local leaderboardData = currentPlayerLeaderboard -- to string?
+
+    MP.TriggerClientEvent("getLeaderboardMP", leaderboardData)
+end
+
+function getUserLeaderboard(player_id, data)
+	local player_name = MP.GetPlayerName(player_id)
+    local beammp = MP.GetPlayerIdentifiers(player_id).beammp or "N/A"
+	local leaderboardData = data
+
+	if debugOutput then
+		print("Player: " .. player_name .. " wants to update their leaderboard")
+	end
+
+	json.writeJson(leaderboardPath .. "/" .. beammp .. ".json", leaderboardData)
+	print("Leaderboard received from " .. player_name)
 end
 
 function saveRaceLeaderboard(player_id, leaderboardData)
     print("Saving leaderboards to server")
-    json.writeJson(userStatsPath .. "/" .. player_id .. ".json", leaderboardData)
+    json.writeJson(userStatsPath .. "/" .. beammp .. ".json", leaderboardData)
 end
 
 function loadRaceLeaderboard(player_id)
