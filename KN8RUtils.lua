@@ -228,8 +228,8 @@ function sendLeaderboard(player_id)
     if not FS.IsFile(leaderboardFile) then
         print("Stats for " .. player_name .. " don't exist.")
         createLeaderboard(beammp)
-        print("Requesting " .. player_name .. "'s leaderboard")
-        MP.TriggerClientEvent(player_id, "saveLeaderboard", "please") 
+        --print("Requesting " .. player_name .. "'s leaderboard")
+        --MP.TriggerClientEvent(player_id, "saveLeaderboard", "please") 
     end
     
     local file = io.open(leaderboardFile, "r")
