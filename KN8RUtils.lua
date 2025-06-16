@@ -1,11 +1,12 @@
 -- K-Anator's Utilities.
 json = require("json")
+
 local commandPrefix = "!" -- prefix used to identify commands entered through chat
 
 local debugOutput = true -- set to false to hide console printed information
 
 local userStatsPath = "Resources/KN8R_Utils/UserStats/"
-local leaderboardPath = "Resources/KN8R_Utils/UserStats/leaderboards/"
+local leaderboardPath = "Resources/KN8R_Utils/UserStats/"
 
 function onInit() -- runs when plugin is loaded
 
@@ -25,15 +26,16 @@ function onInit() -- runs when plugin is loaded
     MP.RegisterEvent("raceBegin", "raceBegin")
     MP.RegisterEvent("raceCheckpoint", "raceCheckpoint")
     MP.RegisterEvent("raceFinishLap", "raceFinishLap")
-	MP.RegisterEvent("raceEnd", "raceEnd")
-	MP.RegisterEvent("raceLapInvalidated", "raceLapInvalidated")
-	MP.RegisterEvent("racePitEnter", "racePitEnter")
-	MP.RegisterEvent("racePitExit", "racePitExit")
+    MP.RegisterEvent("raceEnd", "raceEnd")
+    MP.RegisterEvent("raceLapInvalidated", "raceLapInvalidated")
+    MP.RegisterEvent("racePitEnter", "racePitEnter")
+    MP.RegisterEvent("racePitExit", "racePitExit")
     MP.RegisterEvent("raceUpdateStats", "raceUpdateStats")
     MP.RegisterEvent("raceCreateStats", "raceCreateStats")
     MP.RegisterEvent("loadRaceLeaderboard", "loadRaceLeaderboard")
     MP.RegisterEvent("saveRaceLeaderboard", "saveRaceLeaderboard")
-	MP.RegisterEvent("jsonTest", "jsonTest")
+    MP.RegisterEvent("jsonTest", "jsonTest")
+    MP.RegisterEvent("getLeaderboard", "getLeaderboard")
 
     print("K-Anator's Utilities Loaded!")
 end
@@ -73,7 +75,7 @@ function onPlayerJoin(player_id)
         print("onPlayerJoin: player_id: " .. player_id)
     end
     MP.SendChatMessage(-1, MP.GetPlayerName(player_id) .. " has joined the server!")
-    sendUserLeaderboard(player_id, true)
+    sendLeaderboard(player_id)
 end
 
 -- A player has disconnected
@@ -140,235 +142,125 @@ end
 
 ------------------------------BEGIN CUSTOM FUNCTIONS------------------------------
 
-	-- This will be called when the client-side examplePlugin triggers the server event "onJump"
-	-- The player's ID, and the data
-
-	-- function onJump(player_id, data)
-	-- if debugOutput then
-	-- print("onJump: player_id: " .. player_id .. " | Data: " .. data)
-	-- end
-	-- MP.SendChatMessage(-1, MP.GetPlayerName(player_id) .. " jumped " .. data .. " meters")
-	-- end
-	-- This will be called when the client-side examplePlugin triggers the server event "onSpeed"
-	-- The player's ID, and the data
-
-	-- function onSpeed(player_id, data)
-	-- if debugOutput then
-	-- print("onSpeed: player_id: " .. player_id .. " | Data: " .. data)
-	-- end
-	-- MP.SendChatMessage(-1, MP.GetPlayerName(player_id) .. "'s speed is: " .. data)
-	-- end
-function raceBegin(player_id, data)
+function raceBegin(player_id, data) --Triggered when a player starts a race | data = trackname
     local player_name = MP.GetPlayerName(player_id)
     local beammp = MP.GetPlayerIdentifiers(player_id).beammp or "N/A"
     local trackname = data
-	local currentlap = 1
-	local currentcheckpoint = 0
-	local ispitted = 0
     if debugOutput then
         print(player_name .. "(" .. beammp .. ")" .. " started: " .. trackname .. "!")
-    end
-    --raceUpdateStats(player_name, beammp, trackname, currentlap, currentcheckpoint, ispitted)
-
-	--Check if player has stats file
-	local currentPlayerStats = userStatsPath .. "/" .. beammp .. ".json"
-	if not FS.IsFile(currentPlayerStats) then
-		print("Stats for this player don't exist, creating them.")
-        raceCreateStats(trackname, beammp, player_name)
-    end  
-
-	--jsonTest(trackname, beammp)
+    end    
 end
 
-function raceCheckpoint(player_id, data)
+function raceCheckpoint(player_id, data) --Triggered when a player hits a checkpoint | data = checkpoint index
     local player_name = MP.GetPlayerName(player_id)
     local beammp = MP.GetPlayerIdentifiers(player_id).beammp or "N/A"
     local checkpoint = data
-
     if debugOutput then
         print(player_name .. "(" .. beammp .. ")" .. " went through checkpoint: " .. checkpoint .. "!")
     end
 end
 
-function raceFinishLap(player_id, data)
+function raceFinishLap(player_id, data) --Triggered when a player finishes a lap | data = lap index
     local player_name = MP.GetPlayerName(player_id)
     local beammp = MP.GetPlayerIdentifiers(player_id).beammp or "N/A"
     local lap = data
-
     if debugOutput then
         print(player_name .. "(" .. beammp .. ")" .. " completed lap: " .. lap .. "!")
     end
 end
 
-function raceEnd(player_id, data)
-	local player_name = MP.GetPlayerName(player_id)
+function raceEnd(player_id, data) --Triggered when a player completes a race | data = trackname
+    local player_name = MP.GetPlayerName(player_id)
     local beammp = MP.GetPlayerIdentifiers(player_id).beammp or "N/A"
     local trackname = data
-
     if debugOutput then
         print(player_name .. "(" .. beammp .. ")" .. " completed: " .. trackname .. "!")
     end
 end
 
-function raceLapInvalidated(player_id, data)
-	local player_name = MP.GetPlayerName(player_id)
+function raceLapInvalidated(player_id, data) --Triggered when a player invalidates their lap | data = number of missed checkpoints
+    local player_name = MP.GetPlayerName(player_id)
     local beammp = MP.GetPlayerIdentifiers(player_id).beammp or "N/A"
     local missedcheckpoints = data
-
     if debugOutput then
         print(player_name .. "(" .. beammp .. ")" .. "  missed " .. missedcheckpoints .. " checkpoints!")
     end
 end
 
-function racePitEnter(player_id, data)
-	local player_name = MP.GetPlayerName(player_id)
+function racePitEnter(player_id, data) --Triggered when a player enters the pits | data = lap entered on (+1 because first lap is lap 0)
+    local player_name = MP.GetPlayerName(player_id)
     local beammp = MP.GetPlayerIdentifiers(player_id).beammp or "N/A"
     local lap = data
-
     if debugOutput then
         print(player_name .. "(" .. beammp .. ")" .. " entered pit on: " .. lap + 1 .. "!")
     end
 end
 
-function racePitExit(player_id, data)
-	local player_name = MP.GetPlayerName(player_id)
+function racePitExit(player_id, data) --Triggered when a player exits the pits | data = lap exited (+1 because first lap is lap 0)
+    local player_name = MP.GetPlayerName(player_id)
     local beammp = MP.GetPlayerIdentifiers(player_id).beammp or "N/A"
     local lap = data
-
     if debugOutput then
         print(player_name .. "(" .. beammp .. ")" .. " exited pit on: " .. lap + 1 .. "!")
     end
 end
 
---This shouldn't be called and was the wrong way to do things entirely.
-function raceUpdateStats(player_name, beammp, trackname, currentlap, currentcheckpoint, ispitted)
-	local currentPlayerStats = userStatsPath .. "/" .. trackname .. "/" .. beammp .. ".json"
-    -- Check for player stats and create them if needed
-    if not FS.IsFile(currentPlayerStats) then
-		print("Stats for this player don't exist, creating them.")
-        raceCreateStats(trackname, beammp)
-    end    
-    -- Do stat update stuff
-    json.writeJson(currentPlayerStats, {
-        playerName = player_name,
-        currentLap = currentlap,
-		currentCheckpoint = currentcheckpoint,
-		isPitted = ispitted
-    })
-end
-
-
-function raceCreateStats(trackname, beammp, player_name)
-
-    if not FS.IsFile(userStatsPath .. "/" .. beammp .. ".json") then
-        -- Create the user file
-        local playersuccess, error_message =
-            io.open(userStatsPath ..  "/" .. beammp .. ".json", "w+")
-
+function createLeaderboard(beammp)
+    if not FS.IsFile(userStatsPath .. "/" .. beammp .. ".json") then        
+        local playersuccess, error_message = io.open(userStatsPath .. "/" .. beammp .. ".json", "w+")
         if not playersuccess then
             print("failed to create player file: " .. error_message)
         else
-            print("Player file created!")
+            print("Player stats file created!")
+            io.close(playersuccess)
         end
-        io.close(playersuccess)	
     else
-        print("Player file already exists!")
-    end	
-	--Format the user file
+        print("Player already has stats file!")
+    end
 end
 
-function raceCreateLeaderboard(beammp)
+function sendLeaderboard(player_id)
+    local player_name = MP.GetPlayerName(player_id)
+    local beammp = MP.GetPlayerIdentifiers(player_id).beammp or "N/A"
+    print(player_name .. " is requesting their leaderboard.")
 
-    if not FS.IsFile(userStatsPath .. "/" .. beammp .. ".json") then
-        -- Create the user file
-        local playersuccess, error_message =
-            io.open(userStatsPath ..  "/" .. beammp .. ".json", "w+")
-
-        if not playersuccess then
-            print("failed to create player file: " .. error_message)
-        else
-            print("Player file created!")
-        end
-        io.close(playersuccess)	
+    local leaderboardFile = leaderboardPath .. beammp .. ".json"
+    if not FS.IsFile(leaderboardFile) then
+        print("Stats for " .. player_name .. " don't exist.")
+        createLeaderboard(beammp)
+        print("Requesting " .. player_name .. "'s leaderboard")
+        MP.TriggerClientEvent(player_id, "saveLeaderboard", "please") 
+    end
+    
+    local file = io.open(leaderboardFile, "r")
+    local leaderboardData = file:read "a"
+    io.close(file)
+    if leaderboardData then
+        print("Sending " .. player_name.. " leaderboard." .. leaderboardData)
+        MP.TriggerClientEvent(player_id, "retrieveServerLeaderboard", leaderboardData)
     else
-        print("Player file already exists!")
-    end	
-	--Format the user file?
+        print("Leaderboard data was empty, not sending")
+    end
 end
 
-function sendUserLeaderboard(player_id, data)
-	local player_name = MP.GetPlayerName(player_id)
+function getLeaderboard(player_id, data)
+    local player_name = MP.GetPlayerName(player_id)
     local beammp = MP.GetPlayerIdentifiers(player_id).beammp or "N/A"
-	local data = data
+    local leaderboardData = data
 
-	if debugOutput then
-		print("Player: " .. player_name .. " is requesting their leaderboard")
-	end
-
-	--does leaderboard for this player exist?
-	local currentPlayerLeaderboard = leaderboardPath .. "/" .. beammp .. ".json"	
-	if not FS.IsFile(currentPlayerLeaderboard) then
-		print("Stats for this player don't exist, creating them.")
-        raceCreateLeaderboard(beammp)
+    -- does leaderboard for this player exist?
+    local leaderboardFile = leaderboardPath .. beammp .. ".json"
+    if not FS.IsFile(leaderboardFile) then
+        print("Stats file for " .. player_name .. " doesn't exist, creating it.")
+        createLeaderboard(beammp)
     end
 
-	local leaderboardData = currentPlayerLeaderboard -- to string?
+    print("Player: " .. player_name .. " wants to update their leaderboard")    
+    print(leaderboardData)
 
-    MP.TriggerClientEvent("getLeaderboardMP", leaderboardData)
-end
+    local file = io.open(leaderboardFile, "w+")
+    file:write(leaderboardData)
+    file:close()
 
-function getUserLeaderboard(player_id, data)
-	local player_name = MP.GetPlayerName(player_id)
-    local beammp = MP.GetPlayerIdentifiers(player_id).beammp or "N/A"
-	local leaderboardData = data
-
-	if debugOutput then
-		print("Player: " .. player_name .. " wants to update their leaderboard")
-	end
-
-	json.writeJson(leaderboardPath .. "/" .. beammp .. ".json", leaderboardData)
-	print("Leaderboard received from " .. player_name)
-end
-
-function saveRaceLeaderboard(player_id, leaderboardData)
-    print("Saving leaderboards to server")
-    json.writeJson(userStatsPath .. "/" .. beammp .. ".json", leaderboardData)
-end
-
-function loadRaceLeaderboard(player_id)
-    print("Loading leaderboards from server")
-    local leaderboardData = json.readJson(userStatsPath .. "/" .. player_id .. ".json")
-    MP.TriggerClientEvent(player_id, "returnLeaderboard", leaderboardData)
-    MP.TriggerClientEvent(player_id, "loadLeaderboard")
-end
-
--- This is called when a command is entered in chat
--- The player's ID, and the data containing the command and the arguments
-function onCommand(player_id, data)
-    local data = split(data)
-    local command = data[1] -- get the command from the data
-    local args = {} -- initialize an arguments table
-    if data[2] then -- if there is at least one argument
-        local argIndex = 1
-        for dataIndex = 2, #data do
-            args[argIndex] = data[dataIndex]
-            argIndex = argIndex + 1
-        end
-    end
-    if debugOutput then
-        print("onCommand: player_id: " .. player_id .. " | command: " .. command)
-        print("args:")
-        print(args)
-    end
-    MP.TriggerClientEventJson(player_id, command, args) -- trigger the client event for the player that entered the command, sending arguments
-end
-
--- function for splitting strings by a separator into a table
-function split(str, sep)
-    local sep = sep or " "
-    local t = {}
-    for str in string.gmatch(str, "([^" .. sep .. "]+)") do
-        table.insert(t, str)
-    end
-    return t
+    print("Leaderboard received from " .. player_name)
 end

@@ -238,7 +238,7 @@ local function readJson(filename)
 end
 
 local function writeJson(filename, data, level)
-    local file = io.open(filename, "w")
+    local file = io.open(filename, "w+")
     if not file then
         error("Could not open file for writing: " .. filename)
     end
