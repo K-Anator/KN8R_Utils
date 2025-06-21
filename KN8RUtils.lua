@@ -30,11 +30,8 @@ function onInit() -- runs when plugin is loaded
     MP.RegisterEvent("raceLapInvalidated", "raceLapInvalidated")
     MP.RegisterEvent("racePitEnter", "racePitEnter")
     MP.RegisterEvent("racePitExit", "racePitExit")
-    MP.RegisterEvent("raceUpdateStats", "raceUpdateStats")
-    MP.RegisterEvent("raceCreateStats", "raceCreateStats")
     MP.RegisterEvent("loadRaceLeaderboard", "loadRaceLeaderboard")
     MP.RegisterEvent("saveRaceLeaderboard", "saveRaceLeaderboard")
-    MP.RegisterEvent("jsonTest", "jsonTest")
     MP.RegisterEvent("getLeaderboard", "getLeaderboard")
 
     print("K-Anator's Utilities Loaded!")
@@ -74,8 +71,8 @@ function onPlayerJoin(player_id)
     if debugOutput then
         print("onPlayerJoin: player_id: " .. player_id)
     end
-    MP.SendChatMessage(-1, MP.GetPlayerName(player_id) .. " has joined the server!")
-    sendLeaderboard(player_id)
+    --MP.SendChatMessage(-1, MP.GetPlayerName(player_id) .. " has joined the server!")
+    --sendLeaderboard(player_id)
 end
 
 -- A player has disconnected
@@ -130,6 +127,7 @@ function onVehicleReset(player_id, vehicle_id, data)
         print("data:")
         print(data)
     end
+    sendLeaderboard(player_id) -- Testing, get rid of this and use onPlayerJoin
 end
 
 -- This is called when someone deletes a vehicle they own
@@ -226,12 +224,9 @@ function sendLeaderboard(player_id)
 
     local leaderboardFile = leaderboardPath .. beammp .. ".json"
     if not FS.IsFile(leaderboardFile) then
-        print("Stats for " .. player_name .. " don't exist.")
-        createLeaderboard(beammp)
-        --print("Requesting " .. player_name .. "'s leaderboard")
-        --MP.TriggerClientEvent(player_id, "saveLeaderboard", "please") 
-    end
-    
+        print("Stats for " .. player_name .. " don't exist, wait for them to be uploaded")
+        return
+    end    
     local file = io.open(leaderboardFile, "r")
     local leaderboardData = file:read "a"
     io.close(file)
@@ -239,7 +234,7 @@ function sendLeaderboard(player_id)
         print("Sending " .. player_name.. " leaderboard." .. leaderboardData)
         MP.TriggerClientEvent(player_id, "retrieveServerLeaderboard", leaderboardData)
     else
-        print("Leaderboard data was empty, not sending")
+        print("Leaderboard data was empty for some reason, not sending")
     end
 end
 
