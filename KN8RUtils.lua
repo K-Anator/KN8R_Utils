@@ -1,5 +1,4 @@
 -- K-Anator's Utilities // A monolithic mess of a class to help out the RLS servers.
-
 local commandPrefix = "!" -- prefix used to identify commands entered through chat
 
 local debugOutput = false -- set to false to hide console printed information
@@ -109,32 +108,36 @@ end
 -- This is called when someone spawns a vehicle
 -- The player's ID (number), the vehicle ID (number), and the vehicle data (table)
 function onVehicleSpawn(player_id, vehicle_id, data)
+    local player_name = MP.GetPlayerName(player_id)
     if debugOutput then
         print("onVehicleSpawn: player_id: " .. player_id .. " | vehicle_id: " .. vehicle_id)
         print("data:")
         print(data)
     end
+    MP.TriggerClientEvent(player_id, "updateConfig", player_name)
 end
 
 -- This is called when someone edits a vehicle, or replaces their existing one
 -- The player's ID (number), the vehicle ID (number), and the vehicle data (table)
 function onVehicleEdited(player_id, vehicle_id, data)
+    local player_name = MP.GetPlayerName(player_id)
     if debugOutput then
         print("onVehicleEdited: player_id: " .. player_id .. " | vehicle_id: " .. vehicle_id)
         print("data:")
         print(data)
     end
+    MP.TriggerClientEvent(player_id, "updateConfig", player_name)
 end
 
 -- This is called when someone resets a vehicle
 -- The player's ID (number), the vehicle ID (number), and the vehicle data (table)
 function onVehicleReset(player_id, vehicle_id, data)
+    local player_name = MP.GetPlayerName(player_id)
     if debugOutput then
         print("onVehicleReset: player_id: " .. player_id .. " | vehicle_id: " .. vehicle_id)
         print("data:")
         print(data)
     end
-    sendLeaderboard(player_id) -- Testing, get rid of this and use onPlayerJoin
 end
 
 -- This is called when someone deletes a vehicle they own
