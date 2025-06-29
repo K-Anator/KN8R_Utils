@@ -1,14 +1,16 @@
--- K-Anator's Utilities.
-json = require("json")
+-- K-Anator's Utilities // A monolithic mess of a class to help out the RLS servers.
 
 local commandPrefix = "!" -- prefix used to identify commands entered through chat
 
-local debugOutput = true -- set to false to hide console printed information
+local debugOutput = false -- set to false to hide console printed information
 
 local userStatsPath = "Resources/KN8R_Utils/UserStats/"
 local leaderboardPath = "Resources/KN8R_Utils/UserStats/"
 local roleList = "Resources/KN8R_Utils/roles.json"
 local blackList = "Resources/KN8R_Utils/bans.json"
+local countdownIsActive = false
+local timerLength
+local timerMargin = 4
 
 function onInit() -- runs when plugin is loaded
 
@@ -35,6 +37,7 @@ function onInit() -- runs when plugin is loaded
     MP.RegisterEvent("loadRaceLeaderboard", "loadRaceLeaderboard")
     MP.RegisterEvent("saveRaceLeaderboard", "saveRaceLeaderboard")
     MP.RegisterEvent("getLeaderboard", "getLeaderboard")
+    MP.RegisterEvent("countdownTimer", "countdownTimer")
 
     print("K-Anator's Utilities Loaded!")
 end
@@ -95,10 +98,11 @@ function onChatMessage(player_id, player_name, message)
                   message)
     end
 
-    if message == "!start" then
-        MP.SendChatMessage(-1, "Race is starting!")
-        countdown()
-        return 1
+    if message:sub(1, 1) == commandPrefix then -- if the character at index 1 of the string is the command prefix then
+        command = string.sub(message, 2) -- the command is everything in the chat message from string index 2 to the end of the string
+        onCommand(player_id, command) -- call the onCommand() function passing in the player's ID and the command string
+        return 1 -- prevent the command from showing up in the chat
+    else -- otherwise do nothing
     end
 end
 
@@ -207,20 +211,6 @@ function racePitExit(player_id, data) -- Triggered when a player exits the pits 
     end
 end
 
-function createLeaderboard(beammp)
-    if not FS.IsFile(leaderboardPath .. "/" .. beammp .. ".json") then
-        local playersuccess, error_message = io.open(leaderboardPath .. "/" .. beammp .. ".json", "w+")
-        if not playersuccess then
-            print("failed to create player file: " .. error_message)
-        else
-            print("Player stats file created!")
-            io.close(playersuccess)
-        end
-    else
-        print("Player already has stats file!")
-    end
-end
-
 function sendLeaderboard(player_id)
     local player_name = MP.GetPlayerName(player_id)
     local beammp = MP.GetPlayerIdentifiers(player_id).beammp or "N/A"
@@ -248,11 +238,6 @@ function getLeaderboard(player_id, data)
     local leaderboardData = data
     local leaderboardFile = leaderboardPath .. beammp .. ".json"
 
-    if not FS.IsFile(leaderboardFile) then
-        print("Stats file for " .. player_name .. " doesn't exist, creating it.")
-        createLeaderboard(beammp)
-    end
-    
     print("Player: " .. player_name .. " wants to update their leaderboard")
     print(leaderboardData)
 
@@ -263,18 +248,57 @@ function getLeaderboard(player_id, data)
     print("Leaderboard received from " .. player_name)
 end
 
-function countdown()
-
-    local length = 5
-
-    for i = 0, length do
-        if i < length then
-            MP.SendChatMessage(-1, "Race Starts in " .. length - i)
-        end
-
-        if i == length then
-            MP.SendChatMessage(-1, "Go!")
-        end
-        MP.Sleep(1000)
+function countdownTimer()
+    countdownIsActive = true
+    timerLength = timerLength - 1
+    if timerLength > -1 then
+        MP.SendChatMessage(-1, tostring(timerLength + 1))
     end
+    if timerLength == -1 then
+        MP.Wait()
+        MP.SendChatMessage(-1, "GREEN! GREEN! GREEN!")
+        MP.CancelEventTimer("countdownTimer")
+        countdownIsActive = false
+    end
+    if timerLength <= -1 then
+        MP.CancelEventTimer("countdownTimer")
+        countdownIsActive = false
+    end
+end
+
+function onCommand(player_id, data)
+    local data = split(data)
+    local command = data[1] -- get the command from the data
+    local args = {} -- initialize an arguments table
+    if data[2] then -- if there is at least one argument
+        local argIndex = 1
+        for dataIndex = 2, #data do
+            args[argIndex] = data[dataIndex]
+            argIndex = argIndex + 1
+        end
+    end
+    if debugOutput then
+        print("onCommand: player_id: " .. player_id .. " | command: " .. command)
+        print("args:")
+        print(args)
+    end
+    if command == "start" and not countdownIsActive then
+        timerLength = tonumber(args[1])
+        MP.SendChatMessage(-1, "Drivers ready!")
+        MP.CreateEventTimer("countdownTimer", 1000)
+    else
+        print("Timer already active, cancelling.")
+        MP.SendChatMessage(player_id, "Countdown is currently active!")
+        return 1
+    end
+end
+
+-- function for splitting strings by a separator into a table
+function split(str, sep)
+    local sep = sep or " "
+    local t = {}
+    for str in string.gmatch(str, "([^" .. sep .. "]+)") do
+        table.insert(t, str)
+    end
+    return t
 end
