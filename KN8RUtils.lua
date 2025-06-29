@@ -7,6 +7,8 @@ local debugOutput = true -- set to false to hide console printed information
 
 local userStatsPath = "Resources/KN8R_Utils/UserStats/"
 local leaderboardPath = "Resources/KN8R_Utils/UserStats/"
+local roleList = "Resources/KN8R_Utils/roles.json"
+local blackList = "Resources/KN8R_Utils/bans.json"
 
 function onInit() -- runs when plugin is loaded
 
@@ -37,10 +39,12 @@ function onInit() -- runs when plugin is loaded
     print("K-Anator's Utilities Loaded!")
 end
 
+------------------------------BEAMP BOILERPLATE------------------------------
+
 -- A player has authenticated and is requesting to join
 -- The player's name (string), forum role (string), guest account (bool), identifiers (table -> ip, beammp)
 function onPlayerAuth(player_name, role, isGuest, identifiers)
-    if player_name == "CamaroCars" then
+    if player_name == "USERNAME" then
         return "You cannot connect to this server due to performance issues."
     end
     if isGuest then
@@ -137,7 +141,7 @@ function onVehicleDeleted(player_id, vehicle_id)
     end
 end
 
-------------------------------BEGIN CUSTOM FUNCTIONS------------------------------
+------------------------------CRAP K-ANATOR WROTE------------------------------
 
 function raceBegin(player_id, data) -- Triggered when a player starts a race | data = trackname
     local player_name = MP.GetPlayerName(player_id)
@@ -204,8 +208,8 @@ function racePitExit(player_id, data) -- Triggered when a player exits the pits 
 end
 
 function createLeaderboard(beammp)
-    if not FS.IsFile(userStatsPath .. "/" .. beammp .. ".json") then
-        local playersuccess, error_message = io.open(userStatsPath .. "/" .. beammp .. ".json", "w+")
+    if not FS.IsFile(leaderboardPath .. "/" .. beammp .. ".json") then
+        local playersuccess, error_message = io.open(leaderboardPath .. "/" .. beammp .. ".json", "w+")
         if not playersuccess then
             print("failed to create player file: " .. error_message)
         else
@@ -242,14 +246,13 @@ function getLeaderboard(player_id, data)
     local player_name = MP.GetPlayerName(player_id)
     local beammp = MP.GetPlayerIdentifiers(player_id).beammp or "N/A"
     local leaderboardData = data
-
-    -- does leaderboard for this player exist?
     local leaderboardFile = leaderboardPath .. beammp .. ".json"
+
     if not FS.IsFile(leaderboardFile) then
         print("Stats file for " .. player_name .. " doesn't exist, creating it.")
         createLeaderboard(beammp)
     end
-
+    
     print("Player: " .. player_name .. " wants to update their leaderboard")
     print(leaderboardData)
 
