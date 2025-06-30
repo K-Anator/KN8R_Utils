@@ -1,15 +1,16 @@
 -- K-Anator's Utilities // A monolithic mess of a class to help out the RLS servers.
+
+----Config----
 local commandPrefix = "!" -- prefix used to identify commands entered through chat
-
 local debugOutput = false -- set to false to hide console printed information
-
-local userStatsPath = "Resources/KN8R_Utils/UserStats/"
-local leaderboardPath = "Resources/KN8R_Utils/UserStats/"
-local roleList = "Resources/KN8R_Utils/roles.json"
-local blackList = "Resources/KN8R_Utils/bans.json"
+local timerLength = 5 -- How many seconds to countdown
+local timerMargin = 4000 -- Margin in milliseconds between 1 and "GO!"
+local leaderboardPath = "Resources/KN8R_Utils/UserStats/" -- Directory to store leaderboard data, include trailing "/"
+local roleList = "Resources/KN8R_Utils/roles.json" -- "Resources/KN8R_Utils/roles.json"
+local blackList = "Resources/KN8R_Utils/bans.json" -- "Resources/KN8R_Utils/bans.json"
+----Not Config----
 local countdownIsActive = false
-local timerLength
-local timerMargin = 4
+local timer
 
 function onInit() -- runs when plugin is loaded
 
@@ -251,19 +252,19 @@ function getLeaderboard(player_id, data)
     print("Leaderboard received from " .. player_name)
 end
 
-function countdownTimer()
+function countdownTimer(timerLength)
     countdownIsActive = true
-    timerLength = timerLength - 1
-    if timerLength > -1 then
-        MP.SendChatMessage(-1, tostring(timerLength + 1))
+    timer = timer - 1
+    if timer > -1 then
+        MP.SendChatMessage(-1, tostring(timer + 1))
     end
-    if timerLength == -1 then
-        MP.Wait()
+    if timer == -1 then
+        MP.Sleep(Util.RandomIntRange(0, timerMargin))
         MP.SendChatMessage(-1, "GREEN! GREEN! GREEN!")
         MP.CancelEventTimer("countdownTimer")
         countdownIsActive = false
     end
-    if timerLength <= -1 then
+    if timer < -1 or nil then
         MP.CancelEventTimer("countdownTimer")
         countdownIsActive = false
     end
@@ -285,8 +286,13 @@ function onCommand(player_id, data)
         print("args:")
         print(args)
     end
+    ---- "!start [time]" Starts a race countdown with the given arguement if it has one.
     if command == "start" and not countdownIsActive then
-        timerLength = tonumber(args[1])
+        if args[1] then
+            timer = tonumber(args[1])
+        else
+            timer = timerLength
+        end        
         MP.SendChatMessage(-1, "Drivers ready!")
         MP.CreateEventTimer("countdownTimer", 1000)
     else
