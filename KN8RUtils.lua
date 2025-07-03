@@ -1,16 +1,21 @@
 -- K-Anator's Utilities // A monolithic mess of a class to help out the RLS servers.
-
-----Config----
-local commandPrefix = "!" -- prefix used to identify commands entered through chat
+---- Config ----
 local debugOutput = false -- set to false to hide console printed information
-local timerLength = 5 -- How many seconds to countdown
-local timerMargin = 4000 -- Margin in milliseconds between 1 and "GO!"
+local timerLength = 5 -- How many seconds to countdown by default
+local timerMargin = 2500 -- Margin in milliseconds between 1 and "GO!"
 local leaderboardPath = "Resources/KN8R_Utils/UserStats/" -- Directory to store leaderboard data, include trailing "/"
 local roleList = "Resources/KN8R_Utils/roles.json" -- "Resources/KN8R_Utils/roles.json"
 local blackList = "Resources/KN8R_Utils/bans.json" -- "Resources/KN8R_Utils/bans.json"
-----Not Config----
+---- Not Config ----
+local commandPrefix = "!"
 local countdownIsActive = false
-local timer
+local timer = timerLength
+local currentBans = {
+    users = {}
+}
+local currentRoles = {
+    users = {}
+}
 
 function onInit() -- runs when plugin is loaded
 
@@ -25,8 +30,7 @@ function onInit() -- runs when plugin is loaded
     MP.RegisterEvent("onVehicleEdited", "onVehicleEdited")
     MP.RegisterEvent("onVehicleReset", "onVehicleReset")
     MP.RegisterEvent("onVehicleDeleted", "onVehicleDeleted")
-
-    -- Custom
+    -- FRE:KN8R
     MP.RegisterEvent("raceBegin", "raceBegin")
     MP.RegisterEvent("raceCheckpoint", "raceCheckpoint")
     MP.RegisterEvent("raceFinishLap", "raceFinishLap")
@@ -34,12 +38,20 @@ function onInit() -- runs when plugin is loaded
     MP.RegisterEvent("raceLapInvalidated", "raceLapInvalidated")
     MP.RegisterEvent("racePitEnter", "racePitEnter")
     MP.RegisterEvent("racePitExit", "racePitExit")
+    -- FRE:Leaderboards
     MP.RegisterEvent("loadRaceLeaderboard", "loadRaceLeaderboard")
     MP.RegisterEvent("saveRaceLeaderboard", "saveRaceLeaderboard")
     MP.RegisterEvent("getLeaderboard", "getLeaderboard")
+    -- KN8RUtils
     MP.RegisterEvent("countdownTimer", "countdownTimer")
+    -- MP.RegisterEvent("kickUser", "kickUser") -- potential use via clientside UI
+    -- MP.RegisterEvent("banUser", "banUser") -- potential use via clientside UI
+    -- MP.RegisterEvent("getPlayerRole", "getPlayerRole")
 
-    print("K-Anator's Utilities Loaded!")
+    print("K-Anator's Utilities Loading!")
+    loadBanList()
+    loadRolesList()
+    print("K-Anator's Utilities Ready!")
 end
 
 ------------------------------BEAMP BOILERPLATE------------------------------
@@ -47,8 +59,15 @@ end
 -- A player has authenticated and is requesting to join
 -- The player's name (string), forum role (string), guest account (bool), identifiers (table -> ip, beammp)
 function onPlayerAuth(player_name, role, isGuest, identifiers)
-    if player_name == "USERNAME" then
-        return "You cannot connect to this server due to performance issues."
+    for i, v in ipairs(currentBans.users) do
+        if tonumber(identifiers.beammp) == tonumber(v.beammp) then
+            print("User matched banlist, disconnecting.")
+            local message = "Sorry " .. player_name .. ", you were banned by " .. v.bannedby ..
+                                " for the following reason: \"" .. v.reason ..
+                                "\" Please post a screenshot of this dialogue along with your appeal on Discord." ..
+                                " BeamMPID: " .. v.beammp
+            return tostring(message)
+        end
     end
     if isGuest then
         return "No guests allowed, please use a BeamMP account."
@@ -87,7 +106,7 @@ function onPlayerDisconnect(player_id)
     if debugOutput then
         print("onPlayerDisconnect: player_id: " .. player_id)
     end
-    MP.SendChatMessage(-1, MP.GetPlayerName(player_id) .. " has left the server!")
+    -- MP.SendChatMessage(-1, MP.GetPlayerName(player_id) .. " has left the server!")
 end
 
 -- A chat message was sent
@@ -238,7 +257,7 @@ end
 
 function getLeaderboard(player_id, data)
     local player_name = MP.GetPlayerName(player_id)
-    local beammp = MP.GetPlayerIdentifiers(player_id).beammp or "N/A"
+    local beammp = MP.GetPlayerIdentifiers(player_id).beammp
     local leaderboardData = data
     local leaderboardFile = leaderboardPath .. beammp .. ".json"
 
@@ -256,7 +275,7 @@ function countdownTimer(timerLength)
     countdownIsActive = true
     timer = timer - 1
     if timer > -1 then
-        MP.SendChatMessage(-1, tostring(timer + 1))
+        MP.SendChatMessage(-1, tostring(timer + 1) .. "...")
     end
     if timer == -1 then
         MP.Sleep(Util.RandomIntRange(0, timerMargin))
@@ -268,6 +287,79 @@ function countdownTimer(timerLength)
         MP.CancelEventTimer("countdownTimer")
         countdownIsActive = false
     end
+end
+
+local function getPlayerByName(name) -- Returns player_id based on their current username
+    local players = MP.GetPlayers()
+    for k, v in pairs(players) do
+        if v == name then
+            return k, v
+        end
+    end
+end
+
+local function getPlayerRole(player_id) -- Returns permission level based on player_id
+    local beammp = MP.GetPlayerIdentifiers(player_id).beammp
+    for k, v in pairs(currentRoles.users) do
+        if tonumber(v.beammp) == tonumber(beammp) then
+            return v.permissions
+        end
+        return 0
+    end
+end
+
+-- Kick a user by their name
+local function kickUser(name, reason)
+    local player_id = getPlayerByName(name)
+    MP.DropPlayer(player_id, "You were kicked for: " .. reason)
+    return 1
+end
+
+-- Ban a user by their name
+local function banUser(name, reason, bannedby)
+    print(bannedby .. " has banned " .. name .. " for: \"" .. reason .. "\"")
+    local player_id = getPlayerByName(name)
+    local beammp = MP.GetPlayerIdentifiers(player_id).beammp
+    local bannedUser = {beammp = beammp, bannedby = bannedby, reason = reason}
+    table.insert(currentBans.users, bannedUser)
+    local banData = Util.JsonEncode(currentBans)
+    local file = io.open(blackList, "w+")
+    file:write(banData)
+    file:close()
+    kickUser(name, reason)
+end
+
+function loadBanList()
+    local file = io.open(blackList, "r+")
+    local blackListData = file:read "a"
+    if blackListData == "" then
+        print("No users were found in blacklist!")
+        io.close(file)
+        currentBans = {
+            users = {}
+        }
+        return
+    end
+    currentBans = Util.JsonDecode(blackListData)
+    print("Bans loaded for " .. #currentBans.users .. " user(s)")
+    io.close(file)
+    return
+end
+
+function loadRolesList()
+    local file = io.open(roleList, "r+")
+    local roleListData = file:read "a"
+    if currentRoles == "" then
+        print("No roles were loaded!")
+        io.close(file)
+        currentRoles = {
+            users = {}
+        }
+        return
+    end
+    currentRoles = Util.JsonDecode(roleListData)
+    print("Roles loaded for " .. #currentRoles.users .. " user(s)")
+    io.close(file)
 end
 
 function onCommand(player_id, data)
@@ -292,14 +384,53 @@ function onCommand(player_id, data)
             timer = tonumber(args[1])
         else
             timer = timerLength
-        end        
+        end
         MP.SendChatMessage(-1, "Drivers ready!")
         MP.CreateEventTimer("countdownTimer", 1000)
-    else
-        print("Timer already active, cancelling.")
+    elseif command == "start" and countdownIsActive then
         MP.SendChatMessage(player_id, "Countdown is currently active!")
         return 1
     end
+    ---- "!ban [player_name] [Reason]"
+    if command == "ban" then
+        if tonumber(getPlayerRole(player_id)) >= 2 then
+            local name = args[1]
+            local reason = ""
+            for k, v in pairs(args) do
+                if k > 1 then -- add args beyond the username to the reason
+                    reason = tostring(reason) .. v .. " "
+                end
+            end
+            banUser(name, reason, MP.GetPlayerName(player_id))
+            MP.SendChatMessage(player_id, "Your ban was successful!")
+            return
+        else
+            MP.SendChatMessage(player_id, "You do not have permission to send this command!")
+            return
+        end
+    end
+    if command == "kick" then
+        if tonumber(getPlayerRole(player_id)) >= 2 then
+            local name = args[1]
+            local reason = ""
+            for k, v in pairs(args) do
+                if k > 1 then -- add args beyond the username to the reason
+                    reason = tostring(reason) .. v .. " "
+                end
+            end
+            kickUser(name, reason)
+            MP.SendChatMessage(player_id, "Your kick was successful!")
+            return
+        else
+            MP.SendChatMessage(player_id, "You do not have permission to send this command!")
+            return
+        end
+    end
+    ---- !test ----
+    if command == "test" then
+        -- print("The user typing !test has the role: " .. getPlayerRole(player_id))
+    end
+
 end
 
 -- function for splitting strings by a separator into a table
