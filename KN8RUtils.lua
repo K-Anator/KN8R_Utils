@@ -16,6 +16,8 @@ local currentBans = {
 local currentRoles = {
     users = {}
 }
+local currentUsers = {}
+local currentRacers = {}
 
 function onInit() -- runs when plugin is loaded
 
@@ -44,9 +46,11 @@ function onInit() -- runs when plugin is loaded
     MP.RegisterEvent("getLeaderboard", "getLeaderboard")
     -- KN8RUtils
     MP.RegisterEvent("countdownTimer", "countdownTimer")
-    -- MP.RegisterEvent("kickUser", "kickUser") -- potential use via clientside UI
+    MP.RegisterEvent("MP_hideVehicles", "MP_hideVehicles")
+    MP.RegisterEvent("kickUser", "kickUser") -- potential use via clientside UI
     -- MP.RegisterEvent("banUser", "banUser") -- potential use via clientside UI
     -- MP.RegisterEvent("getPlayerRole", "getPlayerRole")
+    MP.RegisterEvent("playerAction", "playerAction")
 
     print("K-Anator's Utilities Loading!")
     loadBanList()
@@ -96,6 +100,8 @@ function onPlayerJoin(player_id)
     if debugOutput then
         print("onPlayerJoin: player_id: " .. player_id)
     end
+    currentUsers[player_id] = getPlayerRole(player_id)
+    print(currentUsers)
     -- MP.SendChatMessage(-1, MP.GetPlayerName(player_id) .. " has joined the server!")
     sendLeaderboard(player_id)
 end
@@ -106,6 +112,7 @@ function onPlayerDisconnect(player_id)
     if debugOutput then
         print("onPlayerDisconnect: player_id: " .. player_id)
     end
+    currentUsers[player_id] = nil
     -- MP.SendChatMessage(-1, MP.GetPlayerName(player_id) .. " has left the server!")
 end
 
@@ -195,7 +202,12 @@ function raceFinishLap(player_id, data) -- Triggered when a player finishes a la
     if debugOutput then
         print(player_name .. "(" .. beammp .. ")" .. " completed lap: " .. lap .. "!")
     end
-    MP.SendChatMessage(-1, player_name .. " completed lap: " .. lap .. "!")
+    for ID, permissions in pairs(currentUsers) do
+        if permissions >= 2 then
+            MP.SendChatMessage(ID, player_name .. " completed lap: " .. lap .. "!")
+        end
+    end
+    -- MP.SendChatMessage(-1, player_name .. " completed lap: " .. lap .. "!")
 end
 
 function raceEnd(player_id, data) -- Triggered when a player completes a race | data = trackname
@@ -289,7 +301,7 @@ function countdownTimer(timerLength)
     end
 end
 
-local function getPlayerByName(name) -- Returns player_id based on their current username
+function getPlayerByName(name) -- Returns player_id based on their current username
     local players = MP.GetPlayers()
     for k, v in pairs(players) do
         if v == name then
@@ -298,7 +310,7 @@ local function getPlayerByName(name) -- Returns player_id based on their current
     end
 end
 
-local function getPlayerRole(player_id) -- Returns permission level based on player_id
+function getPlayerRole(player_id) -- Returns permission level based on player_id
     local beammp = MP.GetPlayerIdentifiers(player_id).beammp
     for k, v in pairs(currentRoles.users) do
         if tonumber(v.beammp) == tonumber(beammp) then
@@ -306,27 +318,6 @@ local function getPlayerRole(player_id) -- Returns permission level based on pla
         end
         return 0
     end
-end
-
--- Kick a user by their name
-local function kickUser(name, reason)
-    local player_id = getPlayerByName(name)
-    MP.DropPlayer(player_id, "You were kicked for: " .. reason)
-    return 1
-end
-
--- Ban a user by their name
-local function banUser(name, reason, bannedby)
-    print(bannedby .. " has banned " .. name .. " for: \"" .. reason .. "\"")
-    local player_id = getPlayerByName(name)
-    local beammp = MP.GetPlayerIdentifiers(player_id).beammp
-    local bannedUser = {beammp = beammp, bannedby = bannedby, reason = reason}
-    table.insert(currentBans.users, bannedUser)
-    local banData = Util.JsonEncode(currentBans)
-    local file = io.open(blackList, "w+")
-    file:write(banData)
-    file:close()
-    kickUser(name, reason)
 end
 
 function loadBanList()
@@ -360,6 +351,59 @@ function loadRolesList()
     currentRoles = Util.JsonDecode(roleListData)
     print("Roles loaded for " .. #currentRoles.users .. " user(s)")
     io.close(file)
+end
+
+-- Kick a user by their name
+local function kickUser(name, reason)
+    local player_id = getPlayerByName(name)
+    MP.DropPlayer(player_id, "You were kicked for: " .. reason)
+    return 1
+end
+
+-- Ban a user by their name
+local function banUser(name, reason, bannedby)
+    print(bannedby .. " has banned " .. name .. " for: \"" .. reason .. "\"")
+    local player_id = getPlayerByName(name)
+    local beammp = MP.GetPlayerIdentifiers(player_id).beammp
+    local bannedUser = {
+        beammp = beammp,
+        bannedby = bannedby,
+        reason = reason
+    }
+    table.insert(currentBans.users, bannedUser)
+    local banData = Util.JsonEncode(currentBans)
+    local file = io.open(blackList, "w+")
+    file:write(banData)
+    file:close()
+    kickUser(name, reason)
+end
+
+local function raceJoin(player_id)
+    local player_name = MP.GetPlayerName(player_id)
+    print(player_name .. " has accepted the race!")
+    currentRacers[player_id] = MP.GetPlayerIdentifiers(player_id).beammp
+end
+
+function playerAction(player_id, data)
+    local permissions = tonumber(getPlayerRole(player_id))
+    if permissions < 3 then
+        return
+    end
+    local parsedData = Util.JsonDecode(data)
+    local actionedID = getPlayerByName(parsedData.playerName)
+    local actionedPerms = getPlayerRole(actionedID)
+    if parsedData.action == "kick" then
+        if permissions > actionedPerms then
+            kickUser(parsedData.playerName, parsedData.reason)
+        end
+    elseif parsedData.action == "ban" then
+        if permissions > actionedPerms then
+            banUser(parsedData.playerName, parsedData.reason, MP.GetPlayerName(player_id))
+        end
+    end
+end
+
+function raceGrid()
 end
 
 function onCommand(player_id, data)
@@ -428,9 +472,32 @@ function onCommand(player_id, data)
     end
     ---- !test ----
     if command == "test" then
-        -- print("The user typing !test has the role: " .. getPlayerRole(player_id))
+        print("Test message")
+        for ID, permissions in pairs(currentUsers) do
+            if tonumber(permissions) >= 2 then
+                MP.SendChatMessage(ID, " completed test message!")
+            end
+        end
     end
 
+    if command == "hideme" then
+        print("Hiding vehicle")
+        local vehicles = ""
+        local player_vehicles = MP.GetPlayerVehicles(player_id)
+
+        for vehicle_id, vehicle_data in pairs(player_vehicles) do
+            local start = string.find(vehicle_data, "{")
+            local formattedVehicleData = string.sub(vehicle_data, start, -1)
+            local vehicleData = Util.JsonDecode(formattedVehicleData)
+            vehicles = vehicles .. vehicleData.vid .. ","
+        end
+        MP.TriggerClientEvent(-1, "MP_hideVehicles", vehicles)
+        print(vehicles)
+    end
+
+    if command == "hideothers" then
+        MP.TriggerClientEvent(player_id, "hideOthers", "please")
+    end
 end
 
 -- function for splitting strings by a separator into a table
