@@ -10,6 +10,7 @@ local blackList = "Resources/KN8R_Utils/bans.json" -- "Resources/KN8R_Utils/bans
 ---- Not Config ----
 local commandPrefix = "!"
 local countdownIsActive = false
+local isEventmode = false -- use to disable spawning vehicles for users with perm 0
 local timer = timerLength
 local currentBans = {
     users = {}
@@ -117,6 +118,11 @@ end
 
 function onVehicleReset(player_id, vehicle_id, data)
     local player_name = MP.GetPlayerName(player_id)
+        for ID, permissions in pairs(currentUsers) do
+        if tonumber(permissions) >= 2 then
+            MP.SendChatMessage(ID, player_name .. " reset their vehicle!")
+        end
+    end
 end
 
 function onVehicleDeleted(player_id, vehicle_id)
