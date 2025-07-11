@@ -53,6 +53,7 @@ function onInit() -- runs when plugin is loaded
     -- KN8RUtils
     MP.RegisterEvent("getPlayerRole", "getPlayerRole")
     MP.RegisterEvent("countdownTimer", "countdownTimer")
+    MP.RegisterEvent("addModButtons", "addModButtons")
 
     print("K-Anator's Utilities Loading!")
     loadBanList()
@@ -79,15 +80,17 @@ function onPlayerAuth(player_name, role, isGuest, identifiers)
 end
 
 function onPlayerConnecting(player_id)
+    currentUsers[player_id] = getPlayerRole(player_id)
 end
 
 function onPlayerJoining(player_id)
+
 end
 
 function onPlayerJoin(player_id)
-    currentUsers[player_id] = getPlayerRole(player_id)
     sendLeaderboard(player_id)
-    if tonumber(getPlayerRole(player_id)) >= 2 then
+    local permission = getPlayerRole(player_id)
+    if tonumber(permission) > 2 then
         print("Giving " .. MP.GetPlayerName(player_id) .. " moderator buttons")
         MP.TriggerClientEvent(player_id, "addModButtons", "please")
     end
@@ -118,7 +121,7 @@ end
 
 function onVehicleReset(player_id, vehicle_id, data)
     local player_name = MP.GetPlayerName(player_id)
-        for ID, permissions in pairs(currentUsers) do
+    for ID, permissions in pairs(currentUsers) do
         if tonumber(permissions) >= 2 then
             MP.SendChatMessage(ID, player_name .. " reset their vehicle!")
         end
@@ -139,7 +142,7 @@ function playerBegin(player_id, data) -- Triggered when a player starts a race |
     end
     for ID, permissions in pairs(currentUsers) do
         if tonumber(permissions) >= 2 then
-            MP.SendChatMessage(ID, player_name .. " started: " .. trackname .. "!")
+            MP.SendChatMessage(ID, player_name .. " started " .. trackname .. "!")
         end
     end
 end
@@ -149,7 +152,7 @@ function playerCheckpoint(player_id, data) -- Triggered when a player hits a che
     local beammp = MP.GetPlayerIdentifiers(player_id).beammp or "N/A"
     local checkpoint = data
     if debugOutput then
-        print(player_name .. "(" .. beammp .. ")" .. " went through checkpoint: " .. checkpoint .. "!")
+        print(player_name .. "(" .. beammp .. ")" .. " went through checkpoint " .. checkpoint .. "!")
     end
 end
 
@@ -189,7 +192,7 @@ function playerLapInvalidated(player_id, data) -- Triggered when a player invali
     if debugOutput then
         print(player_name .. "(" .. beammp .. ")" .. "  missed " .. missedcheckpoints .. " checkpoints!")
     end
-        for ID, permissions in pairs(currentUsers) do
+    for ID, permissions in pairs(currentUsers) do
         if tonumber(permissions) >= 2 then
             MP.SendChatMessage(ID, player_name .. " missed " .. missedcheckpoints .. " checkpoints!")
         end
@@ -284,7 +287,6 @@ function getPlayerRole(player_id) -- Returns permission level based on player_id
         if tonumber(v.beammp) == tonumber(beammp) then
             return v.permissions
         end
-        return 0
     end
 end
 
@@ -441,7 +443,8 @@ function onCommand(player_id, data)
         -- print("Test message")
         -- local playerVehicles = getPlayerVehicleIDs(player_id)
         -- print(playerVehicles)
-        MP.SendChatMessage(player_id, "Don't test me!")
+        -- MP.SendChatMessage(player_id, "Don't test me!")
+        print(currentUsers)
         return 1
     end
 
