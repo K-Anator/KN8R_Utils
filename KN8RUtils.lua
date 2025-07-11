@@ -286,6 +286,8 @@ function getPlayerRole(player_id) -- Returns permission level based on player_id
     for k, v in pairs(currentRoles.users) do
         if tonumber(v.beammp) == tonumber(beammp) then
             return v.permissions
+        else
+            return "0"
         end
     end
 end
