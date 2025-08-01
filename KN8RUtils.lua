@@ -1,12 +1,12 @@
 -- K-Anator's Utilities // A monolithic mess of a class to help out the RLS servers.
 ---- Config ----
-local debugOutput = false -- set to false to hide console printed information
 local debugCommands = false -- set to false to disable commands not fully implemented
 local timerLength = 5 -- How many seconds to countdown by default
 local timerMargin = 2500 -- Margin in milliseconds between 1 and "GO!"
 local leaderboardPath = "Resources/KN8R_Utils/UserStats/" -- Directory to store leaderboard data, include trailing "/"
 local roleList = "Resources/KN8R_Utils/roles.json" -- "Resources/KN8R_Utils/roles.json"
 local blackList = "Resources/KN8R_Utils/bans.json" -- "Resources/KN8R_Utils/bans.json"
+local showEventMessages = true
 ---- Not Config ----
 local commandPrefix = "!"
 local countdownIsActive = false
@@ -18,7 +18,9 @@ local currentBans = {
 local currentRoles = {
     users = {}
 }
-local currentUsers = {}
+local currentUsers = {
+    users = {}
+}
 local currentRacers = {}
 
 function onInit() -- runs when plugin is loaded
@@ -48,7 +50,7 @@ function onInit() -- runs when plugin is loaded
     MP.RegisterEvent("getLeaderboard", "getLeaderboard")
     -- FRE:MPEvents
     -- MP.RegisterEvent("MP_hideVehicles", "MPhideVehicles")
-    MP.RegisterEvent("MP_hideVehicle", "MPhideVehicle")
+    -- MP.RegisterEvent("MP_hideVehicle", "MPhideVehicle")
     MP.RegisterEvent("playerAction", "playerAction")
     -- KN8RUtils
     MP.RegisterEvent("getPlayerRole", "getPlayerRole")
@@ -66,7 +68,6 @@ end
 function onPlayerAuth(player_name, role, isGuest, identifiers)
     for i, v in ipairs(currentBans.users) do
         if tonumber(identifiers.beammp) == tonumber(v.beammp) then
-            print("User matched banlist, disconnecting.")
             local message = "Sorry " .. player_name .. ", you were banned by " .. v.bannedby ..
                                 " for the following reason: \"" .. v.reason ..
                                 "\" Please post a screenshot of this dialogue along with your appeal on Discord." ..
@@ -80,18 +81,21 @@ function onPlayerAuth(player_name, role, isGuest, identifiers)
 end
 
 function onPlayerConnecting(player_id)
-    currentUsers[player_id] = getPlayerRole(player_id)
+    currentUsers.users[player_id] = {
+        permissions = getPlayerRole(player_id),
+        isHidden = false,
+        isRacing = false
+    }
 end
 
 function onPlayerJoining(player_id)
-
 end
 
 function onPlayerJoin(player_id)
     sendLeaderboard(player_id)
-    local permission = getPlayerRole(player_id)
-    if tonumber(permission) > 2 then
-        print("Giving " .. MP.GetPlayerName(player_id) .. " moderator buttons")
+    local permissions = getPlayerRole(player_id)
+    if tonumber(permissions) > 2 then
+
         MP.TriggerClientEvent(player_id, "addModButtons", "please")
     end
 end
@@ -111,17 +115,28 @@ end
 
 function onVehicleSpawn(player_id, vehicle_id, data)
     local player_name = MP.GetPlayerName(player_id)
+    if isEventmode then
+        MP.SendChatMessage(player_id, "Sorry, you cannot spawn a vehicle right now.")
+        return 1
+    end
     MP.TriggerClientEvent(player_id, "updateConfig", player_name)
 end
 
 function onVehicleEdited(player_id, vehicle_id, data)
     local player_name = MP.GetPlayerName(player_id)
+    if isEventmode then
+        MP.SendChatMessage(player_id, "Sorry, you cannot edit your vehicle right now.")
+        return 1
+    end
     MP.TriggerClientEvent(player_id, "updateConfig", player_name)
 end
 
 function onVehicleReset(player_id, vehicle_id, data)
     local player_name = MP.GetPlayerName(player_id)
-    for ID, permissions in pairs(currentUsers) do
+    if not showEventMessages then
+        return
+    end
+    for ID, permissions in ipairs(currentUsers.users) do
         if tonumber(permissions) >= 2 then
             MP.SendChatMessage(ID, player_name .. " reset their vehicle!")
         end
@@ -137,10 +152,10 @@ function playerBegin(player_id, data) -- Triggered when a player starts a race |
     local player_name = MP.GetPlayerName(player_id)
     local beammp = MP.GetPlayerIdentifiers(player_id).beammp or "N/A"
     local trackname = data
-    if debugOutput then
-        print(player_name .. "(" .. beammp .. ")" .. " started: " .. trackname .. "!")
+    if not showEventMessages then
+        return
     end
-    for ID, permissions in pairs(currentUsers) do
+    for ID, permissions in pairs(currentUsers.users) do
         if tonumber(permissions) >= 2 then
             MP.SendChatMessage(ID, player_name .. " started " .. trackname .. "!")
         end
@@ -151,21 +166,23 @@ function playerCheckpoint(player_id, data) -- Triggered when a player hits a che
     local player_name = MP.GetPlayerName(player_id)
     local beammp = MP.GetPlayerIdentifiers(player_id).beammp or "N/A"
     local checkpoint = data
-    if debugOutput then
-        print(player_name .. "(" .. beammp .. ")" .. " went through checkpoint " .. checkpoint .. "!")
+    if not showEventMessages then
+        return
     end
 end
 
 function playerFinishLap(player_id, data) -- Triggered when a player finishes a lap | data = lap index
+    local raceData = Util.JsonDecode(data)
     local player_name = MP.GetPlayerName(player_id)
     local beammp = MP.GetPlayerIdentifiers(player_id).beammp or "N/A"
-    local lap = data
-    if debugOutput then
-        print(player_name .. "(" .. beammp .. ")" .. " completed lap: " .. lap)
+    local track = raceData[0]
+    local lap = raceData[1]
+    if not showEventMessages then
+        return
     end
-    for ID, permissions in pairs(currentUsers) do
+    for ID, permissions in pairs(currentUsers.users) do
         if tonumber(permissions) >= 2 then
-            MP.SendChatMessage(ID, player_name .. " completed lap: " .. lap)
+            MP.SendChatMessage(ID, player_name .. " completed lap: " .. lap .. " of " .. track)
         end
     end
     -- MP.SendChatMessage(-1, player_name .. " completed lap: " .. lap .. "!")
@@ -175,10 +192,10 @@ function playerEnd(player_id, data) -- Triggered when a player completes a race 
     local player_name = MP.GetPlayerName(player_id)
     local beammp = MP.GetPlayerIdentifiers(player_id).beammp or "N/A"
     local trackname = data
-    if debugOutput then
-        print(player_name .. "(" .. beammp .. ")" .. " finished " .. trackname .. "!")
+    if not showEventMessages then
+        return
     end
-    for ID, permissions in pairs(currentUsers) do
+    for ID, permissions in pairs(currentUsers.users) do
         if tonumber(permissions) >= 2 then
             MP.SendChatMessage(ID, player_name .. " finished " .. trackname .. "!")
         end
@@ -189,10 +206,10 @@ function playerLapInvalidated(player_id, data) -- Triggered when a player invali
     local player_name = MP.GetPlayerName(player_id)
     local beammp = MP.GetPlayerIdentifiers(player_id).beammp or "N/A"
     local missedcheckpoints = data
-    if debugOutput then
-        print(player_name .. "(" .. beammp .. ")" .. "  missed " .. missedcheckpoints .. " checkpoints!")
+    if not showEventMessages then
+        return
     end
-    for ID, permissions in pairs(currentUsers) do
+    for ID, permissions in pairs(currentUsers.users) do
         if tonumber(permissions) >= 2 then
             MP.SendChatMessage(ID, player_name .. " missed " .. missedcheckpoints .. " checkpoints!")
         end
@@ -203,8 +220,8 @@ function playerPitEnter(player_id, data) -- Triggered when a player enters the p
     local player_name = MP.GetPlayerName(player_id)
     local beammp = MP.GetPlayerIdentifiers(player_id).beammp or "N/A"
     local lap = data
-    if debugOutput then
-        print(player_name .. "(" .. beammp .. ")" .. " entered pit on: " .. lap + 1 .. "!")
+    if not showEventMessages then
+        return
     end
 end
 
@@ -212,29 +229,23 @@ function playerPitExit(player_id, data) -- Triggered when a player exits the pit
     local player_name = MP.GetPlayerName(player_id)
     local beammp = MP.GetPlayerIdentifiers(player_id).beammp or "N/A"
     local lap = data
-    if debugOutput then
-        print(player_name .. "(" .. beammp .. ")" .. " exited pit on: " .. lap + 1 .. "!")
+    if not showEventMessages then
+        return
     end
 end
 
 function sendLeaderboard(player_id)
     local player_name = MP.GetPlayerName(player_id)
     local beammp = MP.GetPlayerIdentifiers(player_id).beammp or "N/A"
-    print(player_name .. " is requesting their leaderboard.")
-
     local leaderboardFile = leaderboardPath .. beammp .. ".json"
     if not FS.IsFile(leaderboardFile) then
-        print("Stats for " .. player_name .. " don't exist, wait for them to be uploaded")
         return
     end
     local file = io.open(leaderboardFile, "r")
     local leaderboardData = file:read "a"
     io.close(file)
     if leaderboardData then
-        print("Sending " .. player_name .. " leaderboard." .. leaderboardData)
         MP.TriggerClientEvent(player_id, "retrieveServerLeaderboard", leaderboardData)
-    else
-        print("Leaderboard data was empty for some reason, not sending")
     end
 end
 
@@ -243,15 +254,9 @@ function getLeaderboard(player_id, data)
     local beammp = MP.GetPlayerIdentifiers(player_id).beammp
     local leaderboardData = data
     local leaderboardFile = leaderboardPath .. beammp .. ".json"
-
-    print("Player: " .. player_name .. " wants to update their leaderboard")
-    print(leaderboardData)
-
     local file = io.open(leaderboardFile, "w+")
     file:write(leaderboardData)
     file:close()
-
-    print("Leaderboard received from " .. player_name)
 end
 
 function countdownTimer(timerLength)
@@ -281,14 +286,17 @@ function getPlayerByName(name) -- Returns player_id based on their current usern
     end
 end
 
-function getPlayerRole(player_id) -- Returns permission level based on player_id
+function getPlayerRole(player_id) -- Returns permissions level based on player_id
     local beammp = MP.GetPlayerIdentifiers(player_id).beammp
-    for k, v in pairs(currentRoles.users) do
+    local permissions
+    for k, v in ipairs(currentRoles.users) do
         if tonumber(v.beammp) == tonumber(beammp) then
+            permissions = v.permissions
             return v.permissions
-        else
-            return "0"
         end
+    end
+    if permissions == nil then
+        return 0
     end
 end
 
@@ -338,6 +346,15 @@ function loadRolesList()
     io.close(file)
 end
 
+-- delete a player's vehicles by their name
+local function deletePlayerVehicles(name)
+    local player_id = getPlayerByName(name)
+    local player_vehicles = MP.GetPlayerVehicles(player_id)
+    for vehicle_id, vehicle_data in pairs(player_vehicles) do
+        MP.RemoveVehicle(player_id, vehicle_id)
+    end
+end
+
 -- Kick a user by their name
 local function kickUser(name, reason)
     local player_id = getPlayerByName(name)
@@ -363,10 +380,20 @@ local function banUser(name, reason, bannedby)
     kickUser(name, reason)
 end
 
+local function toggleEventMode(bool)
+    if bool then
+        isEventmode = bool
+    else
+        isEventmode = not isEventmode
+    end
+    return isEventmode
+end
+
 local function raceJoin(player_id)
     local player_name = MP.GetPlayerName(player_id)
-    print(player_name .. " has accepted the race!")
+    -- print(player_name .. " has accepted the race!")
     currentRacers[player_id] = MP.GetPlayerIdentifiers(player_id).beammp
+    -- send this data to the person that initiated the race
 end
 
 function playerAction(player_id, data)
@@ -383,7 +410,7 @@ function playerAction(player_id, data)
             MP.SendChatMessage(player_id, "You kicked " .. parsedData.playerName)
             return
         else
-            MP.SendChatMessage(player_id, "You do not have permission to send this command!")
+            MP.SendChatMessage(player_id, "You can't kick someone with an equal or greater role than you!")
             return
         end
     elseif parsedData.action == "ban" and permissions >= 2 then
@@ -392,8 +419,18 @@ function playerAction(player_id, data)
             MP.SendChatMessage(player_id, "You banned " .. parsedData.playerName)
             return
         else
-            MP.SendChatMessage(player_id, "You do not have permission to send this command!")
+            MP.SendChatMessage(player_id, "You can't ban someone with an equal or greater role than you!")
         end
+    elseif parsedData.action == "delete" and permissions >= 2 then
+        if permissions > actionedPerms then
+            deletePlayerVehicles(parsedData.playerName)
+        else
+            MP.SendChatMessage(player_id, "You can't delete someone's vehicles with an equal or greater role than you!")
+        end
+    elseif parsedData.action == "queuerace" and permissions >= 2 then
+        -- Race was initiated, show all players vote dialogue
+    elseif parsedData.action == "startrace" and permissions >= 2 then
+        -- Race was started, do race related stuff
     end
 
     -- Commands for "Admins" | 3
@@ -419,15 +456,10 @@ function onCommand(player_id, data)
             argIndex = argIndex + 1
         end
     end
-
-    if debugOutput then
-        print("onCommand: player_id: " .. player_id .. " | command: " .. command)
-        print("args:")
-        print(args)
-    end
+    local permissions = tonumber(getPlayerRole(player_id))
 
     ---- "!start [time]" Starts a race countdown with the given arguement if it has one.
-    if command == "start" and not countdownIsActive then
+    if command == "start" and not countdownIsActive and not isEventmode then
         if args[1] then
             timer = tonumber(args[1])
         else
@@ -438,16 +470,36 @@ function onCommand(player_id, data)
     elseif command == "start" and countdownIsActive then
         MP.SendChatMessage(player_id, "Countdown is currently active!")
         return 1
+    elseif command == "start" and isEventmode then
+        MP.SendChatMessage(player_id, "You can't start a countdown during an event!")
+        return 1
     end
 
     ---- !test ----
     if command == "test" then
-        -- print("Test message")
-        -- local playerVehicles = getPlayerVehicleIDs(player_id)
-        -- print(playerVehicles)
-        -- MP.SendChatMessage(player_id, "Don't test me!")
-        print(currentUsers)
+        local randInt = Util.RandomIntRange(1, 50)
+        if randInt == 42 then
+            MP.SendChatMessage(-1, MP.GetPlayerName(player_id) .. " found an easter egg!")
+        elseif randInt == 4 then
+            MP.SendChatMessage(-1, MP.GetPlayerName(player_id) .. " thinks they're funny")
+        elseif randInt == 36 then
+            MP.SendChatMessage(player_id, MP.GetPlayerName(player_id) .. ", you are breaking the car!")
+        elseif randInt == 26 then
+            MP.SendChatMessage(player_id, "Don't test me!")
+        end
+        -- print(currentUsers)
+        -- toggleEventMode()
         return 1
+    end
+
+    if command == "event" then
+        if getPlayerRole(player_id) >= 2 then
+            toggleEventMode()
+            MP.SendChatMessage(player_id, "Set event mode to: " .. tostring(isEventmode))
+            return 1
+        elseif getPlayerRole(player_id) < 2 or nil then
+            MP.SendChatMessage(player_id, "You do not have permission to send this command!")
+        end
     end
 
     -- "!race [raceName] [laps]"
@@ -468,6 +520,7 @@ function onCommand(player_id, data)
             return 1
         end
         local playername = MP.GetPlayerName(player_id)
+        currentUsers[player_id].isHidden = true
         print("Hiding " .. playername .. "'s vehicle(s) from everyone")
         local players = MP.GetPlayers()
         for k, v in pairs(players) do
@@ -502,7 +555,7 @@ function onCommand(player_id, data)
         return 1
     end
 
-    -- "!showothers" Show every to this player, that wants to be seen
+    -- "!showothers" Show every vehicle to this player that wants to be seen
     if command == "showothers" then
         if not debugCommands then
             MP.SendChatMessage(player_id, "Command not implemented")
