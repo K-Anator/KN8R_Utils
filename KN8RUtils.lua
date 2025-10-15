@@ -193,11 +193,11 @@ function playerEnd(player_id, data) -- Triggered when a player completes a race 
     local player_name = MP.GetPlayerName(player_id)
     local beammp = MP.GetPlayerIdentifiers(player_id).beammp or "N/A"
     local mpMessage = data
-    MP.SendChatMessage(player_id, "You " .. mpMessage)
+    MP.SendChatMessage(player_id, "You finished " .. mpMessage)
     if showEventMessages then
         for i, v in pairs(currentUsers.users) do
             if tonumber(v.permissions) >= 2 then
-                MP.SendChatMessage(i, player_name .. " " .. mpMessage)
+                MP.SendChatMessage(i, player_name .. " finished " .. mpMessage)
             end
         end
     end
