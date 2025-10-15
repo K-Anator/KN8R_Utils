@@ -59,6 +59,8 @@ function onInit() -- runs when plugin is loaded
     MP.RegisterEvent("countdownTimer", "countdownTimer")
     MP.RegisterEvent("addModButtons", "addModButtons")
 
+--TODO: Add check for players and re-add them to roles so utils can be hotloaded or recover from an unexpected reload    
+
     print("K-Anator's Utilities Loading!")
     loadBanList()
     loadRolesList()
@@ -139,8 +141,6 @@ function onVehicleReset(player_id, vehicle_id, data)
         for i, v in pairs(currentUsers.users) do
             if tonumber(v.permissions) >= 2 then
                 MP.SendChatMessage(i, player_name .. " reset their vehicle!")
-            else
-                return
             end
         end
     end
@@ -159,8 +159,6 @@ function playerBegin(player_id, data) -- Triggered when a player starts a race |
         for i, v in pairs(currentUsers.users) do
             if tonumber(v.permissions) >= 2 then
                 MP.SendChatMessage(i, player_name .. " started " .. trackname .. "!")
-            else
-                return
             end
         end
     end
@@ -185,8 +183,6 @@ function playerFinishLap(player_id, data) -- Triggered when a player finishes a 
         for i, v in pairs(currentUsers.users) do
             if tonumber(v.permissions) >= 2 then
                 MP.SendChatMessage(i, player_name .. " completed lap: " .. lap .. " of " .. track)
-            else
-                return
             end
         end
     end
@@ -201,8 +197,6 @@ function playerEnd(player_id, data) -- Triggered when a player completes a race 
         for i, v in pairs(currentUsers.users) do
             if tonumber(v.permissions) >= 2 then
                 MP.SendChatMessage(i, player_name .. " finished " .. trackname .. "!")
-            else
-                return
             end
         end
     end
@@ -216,8 +210,6 @@ function playerLapInvalidated(player_id, data) -- Triggered when a player invali
         for i, v in pairs(currentUsers.users) do
             if tonumber(v.permissions) >= 2 then
                 MP.SendChatMessage(i, player_name .. " missed " .. missedcheckpoints .. " checkpoints!")
-            else
-                return
             end
         end
     end
@@ -246,29 +238,26 @@ function onScrambleTriggerEnter(player_id, data) -- Triggered when player enters
     local beammp = MP.GetPlayerIdentifiers(player_id).beammp or "N/A"
     local location = data
     if showEventMessages then
+        MP.SendChatMessage(player_id, "You made it to " .. location .. " " .. player_name .. "!")
         for i, v in pairs(currentUsers.users) do
             if tonumber(v.permissions) >= 2 then
-                MP.SendChatMessage(i, player_name .. " made it to " .. location .. "!")
-            else
-                return
+                MP.SendChatMessage(i, player_name .. " made it to " .. location .. ".")
             end
         end
     end
 end
 
-function onScrambleTriggerExit(player_id, data) -- Triggered when player enters Scramble triggers
+function onScrambleTriggerExit(player_id, data) -- Triggered when player exits Scramble triggers, unused
     local player_name = MP.GetPlayerName(player_id)
     local beammp = MP.GetPlayerIdentifiers(player_id).beammp or "N/A"
     local location = data
-    if showEventMessages then
-        for i, v in pairs(currentUsers.users) do
-            if tonumber(v.permissions) >= 2 then
-                MP.SendChatMessage(i, player_name .. " left " .. location .. "!")
-            else
-                return
-            end
-        end
-    end
+    --if showEventMessages then
+    --    for i, v in pairs(currentUsers.users) do
+    --        if tonumber(v.permissions) >= 2 then
+    --            MP.SendChatMessage(i, player_name .. " left " .. location .. "!")
+    --        end
+    --    end
+    --end
 end
 
 function sendLeaderboard(player_id)
