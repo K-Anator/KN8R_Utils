@@ -59,7 +59,7 @@ function onInit() -- runs when plugin is loaded
     MP.RegisterEvent("countdownTimer", "countdownTimer")
     MP.RegisterEvent("addModButtons", "addModButtons")
 
---TODO: Add check for players and re-add them to roles so utils can be hotloaded or recover from an unexpected reload    
+    -- TODO: Add check for players and re-add them to roles so utils can be hotloaded or recover from an unexpected reload    
 
     print("K-Anator's Utilities Loading!")
     loadBanList()
@@ -192,11 +192,12 @@ end
 function playerEnd(player_id, data) -- Triggered when a player completes a race | data = trackname
     local player_name = MP.GetPlayerName(player_id)
     local beammp = MP.GetPlayerIdentifiers(player_id).beammp or "N/A"
-    local trackname = data
+    local mpMessage = data
+    MP.SendChatMessage(player_id, "You " .. mpMessage)
     if showEventMessages then
         for i, v in pairs(currentUsers.users) do
             if tonumber(v.permissions) >= 2 then
-                MP.SendChatMessage(i, player_name .. " finished " .. trackname .. "!")
+                MP.SendChatMessage(i, player_name .. " " .. mpMessage)
             end
         end
     end
@@ -251,13 +252,13 @@ function onScrambleTriggerExit(player_id, data) -- Triggered when player exits S
     local player_name = MP.GetPlayerName(player_id)
     local beammp = MP.GetPlayerIdentifiers(player_id).beammp or "N/A"
     local location = data
-    --if showEventMessages then
+    -- if showEventMessages then
     --    for i, v in pairs(currentUsers.users) do
     --        if tonumber(v.permissions) >= 2 then
     --            MP.SendChatMessage(i, player_name .. " left " .. location .. "!")
     --        end
     --    end
-    --end
+    -- end
 end
 
 function sendLeaderboard(player_id)
